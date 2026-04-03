@@ -16,7 +16,7 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "https://smartcollegemanagementsystem.onrender.com"  // replace with your actual frontend URL when deployed
+    "https://cmsfrontend-rosy.vercel.app"  // replace with your actual frontend URL when deployed
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
