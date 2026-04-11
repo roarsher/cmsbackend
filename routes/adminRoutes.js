@@ -31,4 +31,13 @@ router.post("/notices",        createNotice);
 router.get("/notices",         getAllNotices);
 router.delete("/notices/:id",  deleteNotice);
 
+// Courses (for admin use)
+router.get("/courses", async (req, res) => {
+  try {
+    const Course = require("../models/Course");
+    const courses = await Course.find().select("name code department");
+    res.json({ success: true, courses });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
 module.exports = router;
