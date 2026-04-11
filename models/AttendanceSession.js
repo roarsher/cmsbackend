@@ -1,28 +1,22 @@
-const mongoose = require("mongoose");
+ const mongoose = require("mongoose");
 
 const attendanceSessionSchema = new mongoose.Schema(
   {
     teacher:    { type: mongoose.Schema.Types.ObjectId, ref: "Teacher", required: true },
     course:     { type: mongoose.Schema.Types.ObjectId, ref: "Course",  required: true },
     department: { type: String, required: true },
-
-    // Random number challenge
-    challenge:  { type: [Number], required: true }, // e.g. [3, 7, 2]
-
-    // Session timing
+    challenge:  { type: [Number], required: true },
     startTime:  { type: Date, default: Date.now },
-    duration:   { type: Number, default: 60 },      // seconds
+    duration:   { type: Number, default: 60 },
     expiresAt:  { type: Date, required: true },
     active:     { type: Boolean, default: true },
 
-    // Classroom GPS
     classroom: {
-      lat:     { type: Number, required: true },
-      lng:     { type: Number, required: true },
-      radius:  { type: Number, default: 100 },      // meters allowed
+      lat:    { type: Number, required: true },
+      lng:    { type: Number, required: true },
+      radius: { type: Number, default: 100 },
     },
 
-    // Students who submitted
     submissions: [
       {
         student:    { type: mongoose.Schema.Types.ObjectId, ref: "Student" },
@@ -33,11 +27,33 @@ const attendanceSessionSchema = new mongoose.Schema(
         gpsValid:   Boolean,
         lat:        Number,
         lng:        Number,
-        distance:   Number,  // meters from classroom
+        distance:   Number,
         markedAt:   { type: Date, default: Date.now },
         status:     { type: String, enum: ["Present", "Rejected"], default: "Present" },
       },
     ],
+
+    // ✅ Final attendance report (generated on session end)
+    report: {
+      generated:    { type: Boolean, default: false },
+      generatedAt:  { type: Date },
+      totalStudents: Number,
+      presentCount:  Number,
+      absentCount:   Number,
+      rejectedCount: Number,
+      // Full student-wise breakdown
+      entries: [
+        {
+          student:    { type: mongoose.Schema.Types.ObjectId, ref: "Student" },
+          name:       String,
+          rollNumber: String,
+          status:     { type: String, enum: ["Present", "Absent", "Rejected"] },
+          submittedAt: Date,
+          distance:   Number,
+          gpsValid:   Boolean,
+        },
+      ],
+    },
   },
   { timestamps: true }
 );
