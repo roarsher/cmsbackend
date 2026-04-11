@@ -19,19 +19,77 @@ const todayEnd = () => {
 };
 
 // ✅ Admin: Create routine for a branch+date
+// exports.createRoutine = async (req, res) => {
+//   try {
+//     const { date, branch, slots } = req.body;
+//     if (!date || !branch || !slots?.length)
+//       return res.status(400).json({ message: "date, branch and slots are required" });
+
+//     // Check deadline for today's routine
+//     const routineDate = new Date(date);
+//     const today = new Date(); today.setHours(0,0,0,0);
+//     const isToday = routineDate.toDateString() === today.toDateString();
+//     if (isToday && !isBeforeDeadline())
+//       return res.status(400).json({ message: "Cannot create today's routine after 10:00 AM" });
+
+//     const routine = await Routine.create({
+//       date: new Date(date),
+//       branch,
+//       slots,
+//       createdBy: req.user.id,
+//     });
+
+//     await routine.populate("slots.teacher", "name designation");
+//     await routine.populate("slots.course", "name code");
+
+//     res.status(201).json({ success: true, routine });
+//   } catch (error) {
+//     if (error.code === 11000)
+//       return res.status(400).json({ message: `Routine for ${req.body.branch} on this date already exists. Edit the existing one.` });
+//     res.status(500).json({ message: error.message });
+//   }
+// };
 exports.createRoutine = async (req, res) => {
   try {
+    console.log("📥 BODY:", req.body);
+    console.log("👤 USER:", req.user);
+
     const { date, branch, slots } = req.body;
-    if (!date || !branch || !slots?.length)
-      return res.status(400).json({ message: "date, branch and slots are required" });
 
-    // Check deadline for today's routine
+    // ✅ Validation
+    if (!date || !branch || !slots || !Array.isArray(slots) || slots.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "date, branch and slots are required",
+      });
+    }
+
+    // ✅ Check user exists
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: user not found",
+      });
+    }
+
+    // ✅ Deadline logic
     const routineDate = new Date(date);
-    const today = new Date(); today.setHours(0,0,0,0);
-    const isToday = routineDate.toDateString() === today.toDateString();
-    if (isToday && !isBeforeDeadline())
-      return res.status(400).json({ message: "Cannot create today's routine after 10:00 AM" });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
+    const isToday = routineDate.toDateString() === today.toDateString();
+
+    // 👉 Safe check
+    if (isToday && typeof isBeforeDeadline === "function") {
+      if (!isBeforeDeadline()) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot create today's routine after 10:00 AM",
+        });
+      }
+    }
+
+    // ✅ Create routine
     const routine = await Routine.create({
       date: new Date(date),
       branch,
@@ -39,17 +97,33 @@ exports.createRoutine = async (req, res) => {
       createdBy: req.user.id,
     });
 
-    await routine.populate("slots.teacher", "name designation");
-    await routine.populate("slots.course", "name code");
+    // ✅ Populate safely
+    await routine.populate([
+      { path: "slots.teacher", select: "name designation" },
+      { path: "slots.course", select: "name code" },
+    ]);
 
-    res.status(201).json({ success: true, routine });
+    res.status(201).json({
+      success: true,
+      routine,
+    });
+
   } catch (error) {
-    if (error.code === 11000)
-      return res.status(400).json({ message: `Routine for ${req.body.branch} on this date already exists. Edit the existing one.` });
-    res.status(500).json({ message: error.message });
+    console.error("❌ CREATE ROUTINE ERROR:", error);
+
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: `Routine for ${req.body.branch} on this date already exists.`,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-
 // ✅ Admin: Update routine (before 10 AM for today)
 exports.updateRoutine = async (req, res) => {
   try {
