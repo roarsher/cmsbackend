@@ -72,3 +72,20 @@ exports.createCourse = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.getCourses = async (req, res) => {
+  try {
+    const Course = require("../models/Course");
+    const courses = await Course.find().select("name code department");
+
+    res.json({
+      success: true,
+      courses,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
