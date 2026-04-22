@@ -211,13 +211,13 @@ exports.chat = async (req, res) => {
     console.log("API HIT ✅");
 
     const completion = await groq.chat.completions.create({
-      model: "llama3-8b-8192",
+      model: "llama-3.1-8b-instant", // ✅ FIXED MODEL
       messages: [
         { role: "user", content: "Hello" },
       ],
     });
 
-    console.log("GROQ RESPONSE ✅", completion);
+    console.log("GROQ RESPONSE ✅");
 
     res.json({ reply: completion.choices[0].message.content });
 
