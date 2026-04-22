@@ -6,6 +6,13 @@ const Notice     = require("../models/Notice");
 const Routine    = require("../models/Routine");
 const { GoogleGenAI } = require("@google/genai");
 
+const OpenAI = require("openai");
+
+const groq = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: "https://api.groq.com/openai/v1",
+});
+
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const BCE_KNOWLEDGE = `You are the official AI assistant of Bhagalpur College of Engineering (BCE), Bhagalpur, Bihar, India.
@@ -137,16 +144,12 @@ Notices:\n${notices.map(n=>`  • ${n.title}`).join("\n") || "  None"}`;
 //   }
 // };
 
-exports.chat = async (req, res) => {
+ exports.chat = async (req, res) => {
   try {
     const { message, userId, role } = req.body;
 
     if (!message) {
       return res.status(400).json({ message: "Message required" });
-    }
-
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ message: "GEMINI_API_KEY not configured" });
     }
 
     const userContext = await buildUserContext(userId, role);
@@ -156,22 +159,49 @@ exports.chat = async (req, res) => {
       (userContext ||
         "\n\n=== USER NOT LOGGED IN ===\nFor attendance/marks/routine — ask user to login first.");
 
-    const result = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: `${systemPrompt}\n\nUser question: ${message}`,
-    });
+    let reply = "";
 
-    const reply =
-      result?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "Sorry, I could not process that.";
+    try {
+      // 🔥 PRIMARY: Gemini
+      const result = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: `${systemPrompt}\n\nUser question: ${message}`,
+      });
+
+      reply =
+        result?.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "No response from Gemini";
+
+    } catch (err) {
+      console.error("Gemini failed:", err.status);
+
+      // 🔥 FALLBACK: Groq
+      if (err.status === 429 || err.status === 500) {
+        console.log("Switching to Groq fallback...");
+
+        const completion = await groq.chat.completions.create({
+          model: "llama3-8b-8192",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: message },
+          ],
+        });
+
+        reply = completion.choices[0].message.content;
+      } else {
+        throw err;
+      }
+    }
 
     res.json({ success: true, reply });
 
   } catch (error) {
     console.error("AI chat error FULL:", error);
-    res.status(500).json({
-      message: "AI error",
-      error: error.message
+
+    // 🔥 FINAL FALLBACK (if everything fails)
+    res.json({
+      success: false,
+      reply: "Server busy. Please try again later."
     });
   }
 };
