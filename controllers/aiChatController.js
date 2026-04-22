@@ -144,6 +144,11 @@ Notices:\n${notices.map(n=>`  • ${n.title}`).join("\n") || "  None"}`;
 //   }
 // };
 
+
+
+
+
+
 //  exports.chat = async (req, res) => {
 //   try {
 //     const { message, userId, role } = req.body;
@@ -206,23 +211,66 @@ Notices:\n${notices.map(n=>`  • ${n.title}`).join("\n") || "  None"}`;
 //   }
 // };
 
-exports.chat = async (req, res) => {
+
+
+
+ exports.chat = async (req, res) => {
   try {
-    console.log("API HIT ✅");
+    const { message, userId, role } = req.body;
 
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant", // ✅ FIXED MODEL
-      messages: [
-        { role: "user", content: "Hello" },
-      ],
-    });
+    if (!message) {
+      return res.status(400).json({ message: "Message required" });
+    }
 
-    console.log("GROQ RESPONSE ✅");
+    const userContext = await buildUserContext(userId, role);
 
-    res.json({ reply: completion.choices[0].message.content });
+    const systemPrompt =
+      BCE_KNOWLEDGE +
+      (userContext ||
+        "\n\n=== USER NOT LOGGED IN ===\nFor attendance/marks/routine — ask user to login first.");
+
+    let reply = "";
+
+    try {
+      // 🔥 PRIMARY: Gemini
+      const result = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: `${systemPrompt}\n\nUser question: ${message}`,
+      });
+
+      reply =
+        result?.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "No response from Gemini";
+
+    } catch (err) {
+      console.error("Gemini failed:", err.status);
+
+      // 🔥 FALLBACK: Groq (FIXED MODEL)
+      if (err.status === 429 || err.status === 500) {
+        console.log("Switching to Groq fallback...");
+
+        const completion = await groq.chat.completions.create({
+          model: "llama-3.1-8b-instant", // ✅ FIXED
+          messages: [
+            { role: "system", content: systemPrompt }, // 🔥 IMPORTANT
+            { role: "user", content: message },
+          ],
+        });
+
+        reply = completion.choices[0].message.content;
+      } else {
+        throw err;
+      }
+    }
+
+    res.json({ success: true, reply });
 
   } catch (error) {
-    console.error("GROQ ERROR ❌:", error);
-    res.status(500).json({ message: "Groq failed" });
+    console.error("AI chat error FULL:", error);
+
+    res.json({
+      success: false,
+      reply: "Server busy. Please try again later."
+    });
   }
 };
