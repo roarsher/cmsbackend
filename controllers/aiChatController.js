@@ -144,64 +144,85 @@ Notices:\n${notices.map(n=>`  • ${n.title}`).join("\n") || "  None"}`;
 //   }
 // };
 
- exports.chat = async (req, res) => {
+//  exports.chat = async (req, res) => {
+//   try {
+//     const { message, userId, role } = req.body;
+
+//     if (!message) {
+//       return res.status(400).json({ message: "Message required" });
+//     }
+
+//     const userContext = await buildUserContext(userId, role);
+
+//     const systemPrompt =
+//       BCE_KNOWLEDGE +
+//       (userContext ||
+//         "\n\n=== USER NOT LOGGED IN ===\nFor attendance/marks/routine — ask user to login first.");
+
+//     let reply = "";
+
+//     try {
+//       // 🔥 PRIMARY: Gemini
+//       const result = await ai.models.generateContent({
+//         model: "gemini-2.0-flash",
+//         contents: `${systemPrompt}\n\nUser question: ${message}`,
+//       });
+
+//       reply =
+//         result?.candidates?.[0]?.content?.parts?.[0]?.text ||
+//         "No response from Gemini";
+
+//     } catch (err) {
+//       console.error("Gemini failed:", err.status);
+
+//       // 🔥 FALLBACK: Groq
+//       if (err.status === 429 || err.status === 500) {
+//         console.log("Switching to Groq fallback...");
+
+//         const completion = await groq.chat.completions.create({
+//           model: "llama3-8b-8192",
+//           messages: [
+//             { role: "system", content: systemPrompt },
+//             { role: "user", content: message },
+//           ],
+//         });
+
+//         reply = completion.choices[0].message.content;
+//       } else {
+//         throw err;
+//       }
+//     }
+
+//     res.json({ success: true, reply });
+
+//   } catch (error) {
+//     console.error("AI chat error FULL:", error);
+
+//     // 🔥 FINAL FALLBACK (if everything fails)
+//     res.json({
+//       success: false,
+//       reply: "Server busy. Please try again later."
+//     });
+//   }
+// };
+
+exports.chat = async (req, res) => {
   try {
-    const { message, userId, role } = req.body;
+    console.log("API HIT ✅");
 
-    if (!message) {
-      return res.status(400).json({ message: "Message required" });
-    }
+    const completion = await groq.chat.completions.create({
+      model: "llama3-8b-8192",
+      messages: [
+        { role: "user", content: "Hello" },
+      ],
+    });
 
-    const userContext = await buildUserContext(userId, role);
+    console.log("GROQ RESPONSE ✅", completion);
 
-    const systemPrompt =
-      BCE_KNOWLEDGE +
-      (userContext ||
-        "\n\n=== USER NOT LOGGED IN ===\nFor attendance/marks/routine — ask user to login first.");
-
-    let reply = "";
-
-    try {
-      // 🔥 PRIMARY: Gemini
-      const result = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: `${systemPrompt}\n\nUser question: ${message}`,
-      });
-
-      reply =
-        result?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        "No response from Gemini";
-
-    } catch (err) {
-      console.error("Gemini failed:", err.status);
-
-      // 🔥 FALLBACK: Groq
-      if (err.status === 429 || err.status === 500) {
-        console.log("Switching to Groq fallback...");
-
-        const completion = await groq.chat.completions.create({
-          model: "llama3-8b-8192",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: message },
-          ],
-        });
-
-        reply = completion.choices[0].message.content;
-      } else {
-        throw err;
-      }
-    }
-
-    res.json({ success: true, reply });
+    res.json({ reply: completion.choices[0].message.content });
 
   } catch (error) {
-    console.error("AI chat error FULL:", error);
-
-    // 🔥 FINAL FALLBACK (if everything fails)
-    res.json({
-      success: false,
-      reply: "Server busy. Please try again later."
-    });
+    console.error("GROQ ERROR ❌:", error);
+    res.status(500).json({ message: "Groq failed" });
   }
 };
