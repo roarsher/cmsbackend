@@ -39,6 +39,7 @@ app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.get("/", (req, res) => res.status(200).json({ message: "Smart College API Running..." }));
 
 // Routes
+app.use("/api/notifications",   require("./routes/notificationRoutes"));
 app.use("/api/auth",            require("./routes/authRoutes"));
 app.use("/api/admin",           require("./routes/adminRoutes"));
 app.use("/api/student",         require("./routes/studentRoutes"));
