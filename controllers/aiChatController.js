@@ -107,29 +107,71 @@ Notices:\n${notices.map(n=>`  • ${n.title}`).join("\n") || "  None"}`;
   return "";
 };
 
+// exports.chat = async (req, res) => {
+//   try {
+//     const { message, userId, role } = req.body;
+//     if (!message) return res.status(400).json({ message: "Message required" });
+
+//     if (!process.env.GEMINI_API_KEY) {
+//       return res.status(500).json({ message: "GEMINI_API_KEY not configured" });
+//     }
+
+//     const userContext = await buildUserContext(userId, role);
+//     const systemPrompt = BCE_KNOWLEDGE +
+//       (userContext || "\n\n=== USER NOT LOGGED IN ===\nFor attendance/marks/routine — ask user to login first.");
+
+//     const result = await ai.models.generateContent({
+//       model: "gemini-2.0-flash",
+//       contents: `${systemPrompt}\n\nUser question: ${message}`,
+//     });
+
+//     // const reply = result.text || "Sorry, I could not process that.";
+//     const reply =
+//   result?.candidates?.[0]?.content?.parts?.[0]?.text ||
+//   "Sorry, I could not process that.";
+//     res.json({ success: true, reply });
+
+//   } catch (error) {
+//     console.error("AI chat error:", error.message || error);
+//     res.status(500).json({ message: "AI error: " + (error.message || "unknown") });
+//   }
+// };
+
 exports.chat = async (req, res) => {
   try {
     const { message, userId, role } = req.body;
-    if (!message) return res.status(400).json({ message: "Message required" });
+
+    if (!message) {
+      return res.status(400).json({ message: "Message required" });
+    }
 
     if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({ message: "GEMINI_API_KEY not configured" });
     }
 
     const userContext = await buildUserContext(userId, role);
-    const systemPrompt = BCE_KNOWLEDGE +
-      (userContext || "\n\n=== USER NOT LOGGED IN ===\nFor attendance/marks/routine — ask user to login first.");
+
+    const systemPrompt =
+      BCE_KNOWLEDGE +
+      (userContext ||
+        "\n\n=== USER NOT LOGGED IN ===\nFor attendance/marks/routine — ask user to login first.");
 
     const result = await ai.models.generateContent({
       model: "gemini-2.0-flash",
       contents: `${systemPrompt}\n\nUser question: ${message}`,
     });
 
-    const reply = result.text || "Sorry, I could not process that.";
+    const reply =
+      result?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "Sorry, I could not process that.";
+
     res.json({ success: true, reply });
 
   } catch (error) {
-    console.error("AI chat error:", error.message || error);
-    res.status(500).json({ message: "AI error: " + (error.message || "unknown") });
+    console.error("AI chat error FULL:", error);
+    res.status(500).json({
+      message: "AI error",
+      error: error.message
+    });
   }
 };
