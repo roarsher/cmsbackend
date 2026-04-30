@@ -1,51 +1,68 @@
- const Student = require("../models/Student");
+ const Student    = require("../models/Student");
+const Teacher    = require("../models/Teacher");
 const Attendance = require("../models/Attendance");
-const Marks = require("../models/Marks");
-const Notice = require("../models/Notice");
-const Course = require("../models/Course");
+const Marks      = require("../models/Marks");
+const Notice     = require("../models/Notice");
+const Course     = require("../models/Course");
 
-// ✅ Get students filtered by teacher's department
+// ── Helper: get teacher + validate ───────────────────────────────────────────
+const getTeacher = async (userId) => {
+  const teacher = await Teacher.findById(userId).populate("assignedCourses", "name code department semester");
+  if (!teacher) throw new Error("Teacher not found");
+  return teacher;
+};
+
+// ✅ GET /teacher/students
+// Returns students enrolled in ANY of the teacher's assignedCourses
+// Optional query: ?semester=3
 exports.getAllStudents = async (req, res) => {
   try {
-    const Teacher = require("../models/Teacher");
-    const teacher = await Teacher.findById(req.user.id).select("department");
+    const teacher = await getTeacher(req.user.id);
 
-    if (!teacher) {
-      return res.status(404).json({ success: false, message: "Teacher not found" });
-    }
+    if (!teacher.assignedCourses?.length)
+      return res.json({ success: true, students: [] });
 
-    // Only fetch students from teacher's own department
-    const students = await Student.find({ department: teacher.department }).select("-password");
+    const courseIds = teacher.assignedCourses.map((c) => c._id);
 
-    // For each student, calculate attendance % and avg marks
+    const filter = { courses: { $in: courseIds } };
+    if (req.query.semester) filter.semester = Number(req.query.semester);
+
+    const students = await Student.find(filter)
+      .select("-password")
+      .populate("courses", "name code semester department");
+
+    // Enrich with attendance % and avg marks — scoped to teacher's courses only
     const enriched = await Promise.all(
       students.map(async (s) => {
-        const attendanceRecords = await Attendance.find({ student: s._id });
-        const totalClasses = attendanceRecords.length;
-        const presentCount = attendanceRecords.filter(
-          (a) => a.status === "Present"
-        ).length;
-        const attendancePct =
-          totalClasses > 0
-            ? Math.round((presentCount / totalClasses) * 100)
-            : 0;
+        const [attendanceRecords, marksRecords] = await Promise.all([
+          Attendance.find({ student: s._id, course: { $in: courseIds } }),
+          Marks.find({ student: s._id, course: { $in: courseIds } }),
+        ]);
 
-        const marksRecords = await Marks.find({ student: s._id });
-        const avgMarks =
-          marksRecords.length > 0
-            ? Math.round(
-                marksRecords.reduce((sum, m) => sum + m.marks, 0) /
-                  marksRecords.length
-              )
-            : null;
+        const attendancePct = attendanceRecords.length
+          ? Math.round(
+              (attendanceRecords.filter((a) => a.status === "Present").length /
+                attendanceRecords.length) * 100
+            )
+          : null;
+
+        const avgMarks = marksRecords.length
+          ? Math.round(
+              marksRecords.reduce((sum, m) => sum + m.marks, 0) /
+                marksRecords.length
+            )
+          : null;
 
         return {
-          _id: s._id,
-          name: s.name,
-          email: s.email,
+          _id:        s._id,
+          name:       s.name,
+          email:      s.email,
           rollNumber: s.rollNumber,
+          registrationNumber: s.registrationNumber,
           department: s.department,
-          year: s.year,
+          semester:   s.semester,
+          year:       s.year,
+          courses:    s.courses,
           attendance: attendancePct,
           avgMarks,
         };
@@ -59,22 +76,64 @@ exports.getAllStudents = async (req, res) => {
   }
 };
 
-// ✅ Mark Attendance
+// ✅ GET /teacher/courses
+// Returns only courses assigned to this teacher
+exports.getCourses = async (req, res) => {
+  try {
+    const teacher = await getTeacher(req.user.id);
+    res.status(200).json({ success: true, courses: teacher.assignedCourses || [] });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ✅ GET /teacher/students/search?q=ritesh&semester=3
+// Search students within teacher's assigned courses
+exports.searchStudent = async (req, res) => {
+  try {
+    const { q, semester } = req.query;
+    if (!q) return res.status(400).json({ success: false, message: "Query required" });
+
+    const teacher   = await getTeacher(req.user.id);
+    const courseIds = teacher.assignedCourses.map((c) => c._id);
+
+    const filter = {
+      courses: { $in: courseIds },
+      $or: [
+        { name:       { $regex: q, $options: "i" } },
+        { rollNumber: { $regex: q, $options: "i" } },
+        { email:      { $regex: q, $options: "i" } },
+      ],
+    };
+    if (semester) filter.semester = Number(semester);
+
+    const students = await Student.find(filter).select("-password").limit(10);
+    res.status(200).json({ success: true, students });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ✅ POST /attendance/mark
+// Mark attendance — teacher can only mark for their assigned courses
 exports.markAttendance = async (req, res) => {
   try {
     const { studentId, courseId, status } = req.body;
 
-    if (!studentId || !courseId || !status) {
-      return res
-        .status(400)
-        .json({ success: false, message: "All fields required" });
-    }
+    if (!studentId || !courseId || !status)
+      return res.status(400).json({ success: false, message: "studentId, courseId, status required" });
+
+    // Verify teacher owns this course
+    const teacher = await getTeacher(req.user.id);
+    const owns    = teacher.assignedCourses.some((c) => c._id.toString() === courseId);
+    if (!owns)
+      return res.status(403).json({ success: false, message: "You are not assigned to this course" });
 
     const attendance = await Attendance.create({
       student: studentId,
-      course: courseId,
+      course:  courseId,
       status,
-      date: new Date(),
+      date:    new Date(),
     });
 
     res.status(201).json({ success: true, attendance });
@@ -83,50 +142,53 @@ exports.markAttendance = async (req, res) => {
   }
 };
 
-// ✅ Add Marks (by studentId OR rollNumber/name search)
+// ✅ POST /teacher/marks
+// Add or update marks — teacher can only mark for their assigned courses
 exports.addMarks = async (req, res) => {
   try {
-    const { studentId, rollNumber, courseId, marks, subject } = req.body;
+    const { studentId, rollNumber, courseId, marks } = req.body;
 
-    if (marks == null || (!studentId && !rollNumber)) {
+    if (marks == null || (!studentId && !rollNumber))
       return res.status(400).json({
         success: false,
         message: "Provide studentId or rollNumber, courseId, and marks",
       });
-    }
 
-    // Find student by rollNumber if studentId not provided
+    if (Number(marks) < 0 || Number(marks) > 100)
+      return res.status(400).json({ success: false, message: "Marks must be 0–100" });
+
+    // Verify teacher owns this course
+    const teacher = await getTeacher(req.user.id);
+    const owns    = teacher.assignedCourses.some((c) => c._id.toString() === courseId);
+    if (!owns)
+      return res.status(403).json({ success: false, message: "You are not assigned to this course" });
+
+    // Resolve student
     let resolvedStudentId = studentId;
     if (!studentId && rollNumber) {
       const student = await Student.findOne({ rollNumber });
       if (!student)
-        return res
-          .status(404)
-          .json({ success: false, message: "Student not found" });
+        return res.status(404).json({ success: false, message: "Student not found" });
       resolvedStudentId = student._id;
     }
 
-    // Check if marks already exist for this student+course, update if so
-    const existing = await Marks.findOne({
-      student: resolvedStudentId,
-      course: courseId,
-    });
-
+    // Upsert marks
+    const existing = await Marks.findOne({ student: resolvedStudentId, course: courseId });
     let result;
     if (existing) {
-      existing.marks = marks;
+      existing.marks = Number(marks);
       result = await existing.save();
     } else {
       result = await Marks.create({
         student: resolvedStudentId,
-        course: courseId,
-        marks,
+        course:  courseId,
+        marks:   Number(marks),
       });
     }
 
     const populated = await Marks.findById(result._id)
-      .populate("student", "name rollNumber email department")
-      .populate("course", "name");
+      .populate("student", "name rollNumber email department semester")
+      .populate("course",  "name code semester");
 
     res.status(201).json({ success: true, marks: populated });
   } catch (error) {
@@ -134,49 +196,12 @@ exports.addMarks = async (req, res) => {
   }
 };
 
-// ✅ Get all courses (for dropdowns)
-exports.getCourses = async (req, res) => {
-  try {
-    const courses = await Course.find().select("name code department");
-    res.status(200).json({ success: true, courses });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// ✅ Search student by name / roll / email — filtered by teacher's department
-exports.searchStudent = async (req, res) => {
-  try {
-    const { q } = req.query;
-    if (!q)
-      return res.status(400).json({ success: false, message: "Query required" });
-
-    const Teacher = require("../models/Teacher");
-    const teacher = await Teacher.findById(req.user.id).select("department");
-
-    const students = await Student.find({
-      department: teacher?.department,
-      $or: [
-        { name: { $regex: q, $options: "i" } },
-        { rollNumber: { $regex: q, $options: "i" } },
-        { email: { $regex: q, $options: "i" } },
-      ],
-    }).select("-password");
-
-    res.status(200).json({ success: true, students });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// ✅ Post Notice
+// ✅ POST /teacher/notices
 exports.postNotice = async (req, res) => {
   try {
     const { title, message } = req.body;
     if (!title || !message)
-      return res
-        .status(400)
-        .json({ success: false, message: "Title and message required" });
+      return res.status(400).json({ success: false, message: "Title and message required" });
 
     const notice = await Notice.create({ title, message });
     res.status(201).json({ success: true, notice });
@@ -185,7 +210,7 @@ exports.postNotice = async (req, res) => {
   }
 };
 
-// ✅ Get all notices
+// ✅ GET /teacher/notices
 exports.getNotices = async (req, res) => {
   try {
     const notices = await Notice.find().sort({ createdAt: -1 }).limit(10);
