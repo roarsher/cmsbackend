@@ -21,5 +21,10 @@ const studentSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+studentSchema.methods.assignNumbers = function (rollSerial, regSerial) {
+  this.rollNumber = `RN-${rollSerial}-${Date.now()}`;
+  this.registrationNumber = `REG-${regSerial}-${Date.now()}`;
+  this.year = Math.ceil(this.semester / 2);
+};
 
 module.exports = mongoose.model("Student", studentSchema);
