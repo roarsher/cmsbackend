@@ -2,16 +2,18 @@
 
 const studentSchema = new mongoose.Schema(
   {
-    name:       { type: String, required: true },
-    email:      { type: String, required: true, unique: true },
-    password:   { type: String, required: true, select: false },
-    role:       { type: String, default: "student" },
+    name:               { type: String, required: true },
+    email:              { type: String, required: true, unique: true },
+    password:           { type: String, required: true, select: false },
+    role:               { type: String, default: "student" },
 
-    rollNumber: { type: String, required: true, unique: true },
-    department: { type: String, required: true },
-    year:       { type: Number, required: true, min: 1, max: 4 },
+    rollNumber:         { type: String, required: true, unique: true },
+    registrationNumber: { type: String, unique: true, sparse: true }, // ← ADD
+    department:         { type: String, required: true },
+    enrollmentYear:     { type: Number, required: true },             // ← ADD
+    semester:           { type: Number, required: true, min: 1, max: 8 }, // ← ADD
+    year:               { type: Number, required: true, min: 1, max: 4 },
 
-    // ✅ Auto-assigned courses based on department at registration
     courses: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -22,5 +24,12 @@ const studentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Auto-derive year from semester before saving
+studentSchema.pre("validate", function (next) {
+  if (this.semester) {
+    this.year = Math.ceil(this.semester / 2);
+  }
+  next();
+});
 
 module.exports = mongoose.model("Student", studentSchema);
