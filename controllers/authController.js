@@ -195,63 +195,123 @@ exports.register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // if (role === "student") {
+    //   const existing = await Student.findOne({
+    //     $or: [
+    //       { email },
+    //       { rollNumber: profileData.rollNumber },
+    //       { registrationNumber: profileData.registrationNumber },
+    //     ],
+    //   });
+    //   if (existing)
+    //     return res.status(400).json({
+    //       success: false,
+    //       message: "Email, or Roll Number already exists",
+    //     });
+
+    //   const { department, enrollmentYear, semester, rollSerial, regSerial } = profileData;
+
+    //   if (!department || !enrollmentYear || !semester || !rollSerial || !regSerial)
+    //     return res.status(400).json({
+    //       success: false,
+    //       message: "Missing fields: department, enrollmentYear, semester, rollSerial, regSerial required",
+    //     });
+
+    //   // ── Assign courses by BOTH department AND semester ──────────────
+    //   const departmentCourses = await Course.find({
+    //     department,
+    //     semester: Number(semester),
+    //   }).select("_id");
+
+    //   const courseIds = departmentCourses.map((c) => c._id);
+
+    //   const student = new Student({
+    //     name,
+    //     email,
+    //     password: hashedPassword,
+    //     role,
+    //     department,
+    //     enrollmentYear: Number(enrollmentYear),
+    //     semester:       Number(semester),
+    //     courses:        courseIds,
+    //   });
+
+    //   //student.assignNumbers(Number(rollSerial), Number(regSerial));
+    //    // ✅ use user input if exists
+    //    student.rollNumber = profileData.rollNumber || ("RN" + Date.now());
+    //    student.registrationNumber = `REG-${Date.now()}`;
+    //   // ✅ year from semester
+    //    student.year = Math.ceil(Number(semester || 1) / 2);  
+    //   await student.save();
+
+    //   return res.status(201).json({
+    //     success: true,
+    //     message: `Student registered! ${courseIds.length} courses assigned for ${department} Semester ${semester}.`,
+    //     rollNumber:         student.rollNumber,
+    //     registrationNumber: student.registrationNumber,
+    //     year:               student.year,
+    //   });
+    // }
     if (role === "student") {
-      const existing = await Student.findOne({
-        $or: [
-          { email },
-          { rollNumber: profileData.rollNumber },
-         // { registrationNumber: profileData.registrationNumber },
-        ],
-      });
-      if (existing)
-        return res.status(400).json({
-          success: false,
-          message: "Email, or Roll Number already exists",
-        });
+  const { department, enrollmentYear, semester, rollSerial, regSerial } = profileData;
 
-      const { department, enrollmentYear, semester, rollSerial, regSerial } = profileData;
+  if (!department || !enrollmentYear || !semester || !rollSerial || !regSerial)
+    return res.status(400).json({
+      success: false,
+      message: "Missing fields: department, enrollmentYear, semester, rollSerial, regSerial required",
+    });
 
-      if (!department || !enrollmentYear || !semester || !rollSerial || !regSerial)
-        return res.status(400).json({
-          success: false,
-          message: "Missing fields: department, enrollmentYear, semester, rollSerial, regSerial required",
-        });
+  // ── Build roll & reg numbers from user input ──────────────────────
+  const DEPT_CODES = { CE: "1", ME: "2", EE: "3", ECE: "4", CSE: "5" };
+  const yy      = String(enrollmentYear).slice(-2);          // "22"
+  const dCode   = DEPT_CODES[department] || "0";
 
-      // ── Assign courses by BOTH department AND semester ──────────────
-      const departmentCourses = await Course.find({
-        department,
-        semester: Number(semester),
-      }).select("_id");
+  const rollNumber         = `${yy}${dCode}${String(rollSerial).padStart(3, "0")}`;        // e.g. 225036
+  const registrationNumber = `${yy}10${dCode}108${String(regSerial).padStart(3, "0")}`;   // e.g. 221051080021
 
-      const courseIds = departmentCourses.map((c) => c._id);
+  // ── Check duplicates AFTER building the numbers ───────────────────
+  const existing = await Student.findOne({
+    $or: [{ email }, { rollNumber }, { registrationNumber }],
+  });
+  if (existing)
+    return res.status(400).json({
+      success: false,
+      message: "Email, Roll Number, or Registration Number already exists",
+    });
 
-      const student = new Student({
-        name,
-        email,
-        password: hashedPassword,
-        role,
-        department,
-        enrollmentYear: Number(enrollmentYear),
-        semester:       Number(semester),
-        courses:        courseIds,
-      });
+  // ── Assign courses by department + semester ───────────────────────
+  const departmentCourses = await Course.find({
+    department,
+    semester: Number(semester),
+  }).select("_id");
 
-      //student.assignNumbers(Number(rollSerial), Number(regSerial));
-       // ✅ use user input if exists
-       student.rollNumber = profileData.rollNumber || ("RN" + Date.now());
-       student.registrationNumber = `REG-${Date.now()}`;
-      // ✅ year from semester
-       student.year = Math.ceil(Number(semester || 1) / 2);  
-      await student.save();
+  const courseIds = departmentCourses.map((c) => c._id);
 
-      return res.status(201).json({
-        success: true,
-        message: `Student registered! ${courseIds.length} courses assigned for ${department} Semester ${semester}.`,
-        rollNumber:         student.rollNumber,
-        registrationNumber: student.registrationNumber,
-        year:               student.year,
-      });
-    }
+  // ── Save student ──────────────────────────────────────────────────
+  const student = new Student({
+    name,
+    email,
+    password:           hashedPassword,
+    role,
+    department,
+    enrollmentYear:     Number(enrollmentYear),
+    semester:           Number(semester),
+    rollNumber,
+    registrationNumber,
+    courses:            courseIds,
+    // year is auto-set by the pre("validate") hook
+  });
+
+  await student.save();
+
+  return res.status(201).json({
+    success: true,
+    message: `Student registered! ${courseIds.length} courses assigned for ${department} Semester ${semester}.`,
+    rollNumber:         student.rollNumber,
+    registrationNumber: student.registrationNumber,
+    year:               student.year,
+  });
+}
 
     else if (role === "teacher") {
       const existing = await Teacher.findOne({
