@@ -236,7 +236,9 @@ exports.register = async (req, res) => {
         courses:        courseIds,
       });
 
-      student.assignNumbers(Number(rollSerial), Number(regSerial));
+      //student.assignNumbers(Number(rollSerial), Number(regSerial));
+      student.rollNumber = "RN" + Date.now();
+      student.year = Math.ceil(Number(semester || 1) / 2);
       await student.save();
 
       return res.status(201).json({
