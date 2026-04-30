@@ -266,8 +266,9 @@ exports.register = async (req, res) => {
   const yy      = String(enrollmentYear).slice(-2);          // "22"
   const dCode   = DEPT_CODES[department] || "0";
 
-  const rollNumber         = `${yy}${dCode}${String(rollSerial).padStart(3, "0")}`;        // e.g. 225036
-  const registrationNumber = `${yy}10${dCode}108${String(regSerial).padStart(3, "0")}`;   // e.g. 221051080021
+        
+  const rollNumber = `${yy}${dCode}${rollSerial}`; // e.g. 22536
+  const registrationNumber = `${yy}10${dCode}108${regSerial}`;   // e.g. 22105108021
 
   // ── Check duplicates AFTER building the numbers ───────────────────
   const existing = await Student.findOne({
