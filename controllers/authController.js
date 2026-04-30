@@ -236,7 +236,7 @@ exports.register = async (req, res) => {
         courses:        courseIds,
       });
 
-      // student.assignNumbers(Number(rollSerial), Number(regSerial));
+      student.assignNumbers(Number(rollSerial), Number(regSerial));
       await student.save();
 
       return res.status(201).json({
