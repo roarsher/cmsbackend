@@ -200,13 +200,13 @@ exports.register = async (req, res) => {
         $or: [
           { email },
           { rollNumber: profileData.rollNumber },
-          { registrationNumber: profileData.registrationNumber },
+         // { registrationNumber: profileData.registrationNumber },
         ],
       });
       if (existing)
         return res.status(400).json({
           success: false,
-          message: "Email, Roll Number, or Registration Number already exists",
+          message: "Email, or Roll Number already exists",
         });
 
       const { department, enrollmentYear, semester, rollSerial, regSerial } = profileData;
