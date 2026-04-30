@@ -237,7 +237,7 @@ exports.register = async (req, res) => {
       });
 
       // student.assignNumbers(Number(rollSerial), Number(regSerial));
-      // await student.save();
+      await student.save();
 
       return res.status(201).json({
         success: true,
