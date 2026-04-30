@@ -239,7 +239,7 @@ exports.register = async (req, res) => {
       //student.assignNumbers(Number(rollSerial), Number(regSerial));
        // ✅ use user input if exists
        student.rollNumber = profileData.rollNumber || ("RN" + Date.now());
-
+       student.registrationNumber = `REG-${Date.now()}`;
       // ✅ year from semester
        student.year = Math.ceil(Number(semester || 1) / 2);  
       await student.save();
