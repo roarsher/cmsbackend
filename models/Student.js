@@ -8,10 +8,10 @@ const studentSchema = new mongoose.Schema(
     role:               { type: String, default: "student" },
 
     rollNumber:         { type: String, required: true, unique: true },
-    registrationNumber: { type: String, unique: true, sparse: true }, // ← ADD
+    registrationNumber: { type: String, unique: true, sparse: true },
     department:         { type: String, required: true },
-    enrollmentYear:     { type: Number, required: true },             // ← ADD
-    semester:           { type: Number, required: true, min: 1, max: 8 }, // ← ADD
+    enrollmentYear:     { type: Number, required: true },
+    semester:           { type: Number, required: true, min: 1, max: 8 },
     year:               { type: Number, required: true, min: 1, max: 4 },
 
     courses: [
@@ -24,12 +24,10 @@ const studentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Auto-derive year from semester before saving
-studentSchema.pre("validate", function (next) {
+studentSchema.pre("validate", function () {
   if (this.semester) {
     this.year = Math.ceil(this.semester / 2);
   }
-  next();
 });
 
 module.exports = mongoose.model("Student", studentSchema);
