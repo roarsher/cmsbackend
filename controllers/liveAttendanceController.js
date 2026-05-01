@@ -284,7 +284,11 @@ const getDistance = (lat1, lng1, lat2, lng2) => {
 const generateReport = async (session) => {
   try {
     // Get ALL students from this department
-    const allStudents = await Student.find({ department: session.department }).select("name rollNumber _id");
+   // const allStudents = await Student.find({ department: session.department }).select("name rollNumber _id");
+   const allStudents = await Student.find({
+   department: session.department,
+   semester: session.semester, // ✅ THIS IS REQUIRED
+   }).select("name rollNumber _id");
 
     const entries = allStudents.map((s) => {
       const sub = session.submissions.find((sub) => sub.student?.toString() === s._id.toString());
@@ -332,8 +336,13 @@ const generateReport = async (session) => {
 // ✅ Teacher: Start session
 exports.startSession = async (req, res) => {
   try {
-    const { courseId, duration = 60, lat, lng, radius = 100 } = req.body;
-    if (!courseId || !lat || !lng)
+    //const { courseId, duration = 60, lat, lng, radius = 100 } = req.body;
+    const { courseId, semester, duration = 60, lat, lng, radius = 100 } = req.body;
+
+     if (!semester) {
+    return res.status(400).json({ message: "Semester is required" });
+    }
+    if (!courseId || !lat || !lng )
       return res.status(400).json({ message: "courseId, lat, lng are required" });
 
     const teacher = await Teacher.findById(req.user.id);
@@ -344,19 +353,29 @@ exports.startSession = async (req, res) => {
     const challenge = generateChallenge(3);
     const expiresAt = new Date(Date.now() + duration * 1000);
 
+    // const session = await AttendanceSession.create({
+    //   teacher: req.user.id, course: courseId,
+    //   // department: teacher.department,
+    //   department: teacher.departments[0],
+    //   challenge, duration, expiresAt, active: true,
+    //   classroom: { lat: Number(lat), lng: Number(lng), radius: Number(radius) },
+    // });
     const session = await AttendanceSession.create({
-      teacher: req.user.id, course: courseId,
-      // department: teacher.department,
-      department: teacher.departments[0],
-      challenge, duration, expiresAt, active: true,
-      classroom: { lat: Number(lat), lng: Number(lng), radius: Number(radius) },
-    });
-
+  teacher: req.user.id,
+  course: courseId,
+  department: teacher.departments[0],
+  semester, // ✅ ADD THIS LINE
+  challenge,
+  duration,
+  expiresAt,
+  active: true,
+  classroom: { lat: Number(lat), lng: Number(lng), radius: Number(radius) },
+});
     const io = req.app.get("io");
     if (io) {
-      io.to(`dept_${teacher.department}`).emit("session_started", {
+      io.to(`dept_${teacher.departments[0]}`).emit("session_started", {
         sessionId: session._id, courseId, challenge,
-        expiresAt, duration, department: teacher.department,
+        expiresAt, duration, department: teacher.departments[0],
       });
     }
 
@@ -367,7 +386,7 @@ exports.startSession = async (req, res) => {
         if (s && s.active) {
           await generateReport(s);
           const io = req.app.get("io");
-          if (io) io.to(`dept_${teacher.department}`).emit("session_ended", { sessionId: s._id });
+          if (io) io.to(`dept_${teacher.departments[0]}`).emit("session_ended", { sessionId: s._id });
           if (io) io.to(`session_${s._id}`).emit("report_ready", { sessionId: s._id });
         }
       } catch (e) { console.error("Auto-stop error:", e); }
@@ -434,10 +453,16 @@ exports.getActiveSession = async (req, res) => {
     const student = await Student.findById(req.user.id);
     if (!student) return res.status(404).json({ message: "Student not found" });
 
+    // const session = await AttendanceSession.findOne({
+    //   department: student.department,
+    //   active: true,
+    //   expiresAt: { $gt: new Date() },
+    // }).populate("course", "name code");
     const session = await AttendanceSession.findOne({
-      department: student.department,
-      active: true,
-      expiresAt: { $gt: new Date() },
+    department: student.department,
+    semester: student.semester, // ✅ ADD THIS
+    active: true,
+    expiresAt: { $gt: new Date() },
     }).populate("course", "name code");
 
     if (!session) return res.json({ success: true, session: null });
