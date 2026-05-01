@@ -346,7 +346,8 @@ exports.startSession = async (req, res) => {
 
     const session = await AttendanceSession.create({
       teacher: req.user.id, course: courseId,
-      department: teacher.department,
+      // department: teacher.department,
+      department: teacher.departments[0],
       challenge, duration, expiresAt, active: true,
       classroom: { lat: Number(lat), lng: Number(lng), radius: Number(radius) },
     });
