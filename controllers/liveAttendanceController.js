@@ -101,7 +101,7 @@ const generateReport = async (session) => {
 // ─────────────────────────────────────────────────────────────────────────────
 exports.startSession = async (req, res) => {
   try {
-    const { courseId, semester, duration = 60, lat, lng, radius = 100 } = req.body;
+    const { courseId, semester, duration = 60, lat, lng, radius = 5 } = req.body;
 
     // ── Validation ────────────────────────────────────────────────────────────
     if (!courseId)           return res.status(400).json({ message: "courseId is required" });
@@ -385,7 +385,9 @@ exports.submitAttendance = async (req, res) => {
       Number(lat), Number(lng),
       session.classroom.lat, session.classroom.lng
     );
-    const gpsValid = distance <= session.classroom.radius;
+    // const gpsValid = distance <= session.classroom.radius;
+    // Change to — no tolerance, strictly less than radius:
+const gpsValid = Math.round(distance) <= session.classroom.radius;
     const status   = correct && gpsValid ? "Present" : "Rejected";
 
     // ── Record submission ─────────────────────────────────────────────────────
