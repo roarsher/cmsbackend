@@ -107,7 +107,10 @@ exports.startSession = async (req, res) => {
     if (!courseId)           return res.status(400).json({ message: "courseId is required" });
     if (!semester)           return res.status(400).json({ message: "semester is required" });
     if  (lat == null || lng == null)       return res.status(400).json({ message: "lat and lng are required" });
-
+    console.log("🚀 SESSION CREATED:", {
+  receivedRadius: radius,
+  storedRadius: session?.classroom?.radius
+});
     // ── Fetch teacher & verify course is assigned ─────────────────────────────
     const teacher = await Teacher.findById(req.user.id);
     if (!teacher)            return res.status(404).json({ message: "Teacher not found" });
