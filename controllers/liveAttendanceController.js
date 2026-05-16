@@ -106,7 +106,7 @@ exports.startSession = async (req, res) => {
     // ── Validation ────────────────────────────────────────────────────────────
     if (!courseId)           return res.status(400).json({ message: "courseId is required" });
     if (!semester)           return res.status(400).json({ message: "semester is required" });
-    if (!lat || !lng)        return res.status(400).json({ message: "lat and lng are required" });
+    if  (lat == null || lng == null)       return res.status(400).json({ message: "lat and lng are required" });
 
     // ── Fetch teacher & verify course is assigned ─────────────────────────────
     const teacher = await Teacher.findById(req.user.id);
@@ -335,7 +335,7 @@ exports.submitAttendance = async (req, res) => {
   try {
     const { sessionId, answer, lat, lng } = req.body;
 
-    if (!sessionId || !answer || !lat || !lng)
+     if (!sessionId || !answer || lat == null || lng == null)
       return res.status(400).json({ message: "sessionId, answer, lat, lng are required" });
 
     const session = await AttendanceSession.findById(sessionId);
@@ -387,7 +387,8 @@ exports.submitAttendance = async (req, res) => {
     );
     // const gpsValid = distance <= session.classroom.radius;
     // Change to — no tolerance, strictly less than radius:
-const gpsValid = Math.round(distance) <= session.classroom.radius;
+   //const gpsValid = Math.round(distance) <= session.classroom.radius;
+   const gpsValid = distance <= session.classroom.radius;
     const status   = correct && gpsValid ? "Present" : "Rejected";
 
     // ── Record submission ─────────────────────────────────────────────────────

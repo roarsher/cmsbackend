@@ -63,7 +63,7 @@ const attendanceSessionSchema = new mongoose.Schema(
     classroom: {
       lat:    { type: Number, required: true },
       lng:    { type: Number, required: true },
-      radius: { type: Number, default: 100 },       // metres
+      radius: { type: Number, default: 5 },       // metres
     },
 
     submissions: [submissionSchema],
