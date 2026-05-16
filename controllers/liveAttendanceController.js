@@ -389,7 +389,7 @@ exports.submitAttendance = async (req, res) => {
     // const gpsValid = distance <= session.classroom.radius;
     // Change to — no tolerance, strictly less than radius:
    //const gpsValid = Math.round(distance) <= session.classroom.radius;
-   const gpsValid = distance <= session.classroom.radius;
+   ///const gpsValid = distance <= session.classroom.radius;
    const gpsValid = distance <= session.classroom.radius;
 
 // 🔥 ADD DEBUG LOGS HERE (BEST PLACE)
@@ -403,7 +403,7 @@ console.log("📍 GPS DEBUG:", {
   correct,
 });
 
-const status = correct && gpsValid ? "Present" : "Rejected";
+ 
     const status   = correct && gpsValid ? "Present" : "Rejected";
 
     // ── Record submission ─────────────────────────────────────────────────────
