@@ -335,6 +335,7 @@ exports.submitAttendance = async (req, res) => {
   try {
     const { sessionId, answer, lat, lng } = req.body;
 
+
      if (!sessionId || !answer || lat == null || lng == null)
       return res.status(400).json({ message: "sessionId, answer, lat, lng are required" });
 
@@ -405,6 +406,12 @@ exports.submitAttendance = async (req, res) => {
       status,
     });
     await session.save();
+
+console.log("💾 SAVED SUBMISSION:", {
+  student: student.name,
+  status,
+});
+    
 
     // ── Persist to Attendance collection if Present ───────────────────────────
     if (status === "Present") {
